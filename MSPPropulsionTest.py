@@ -23,11 +23,26 @@ numFrames = len(aNames)
 ljm.eWriteNames(handle,numFrames,aNames,aValues)
 pressVoltage = 0.0
 pressure = 0.0
-adjVoltage = 0.0
+pressAdjVoltage = 0.0
 counter = 0
+
+#AIN5 (Load Cell)
+
+loadVoltage = 0.0
+loadAdjVoltage = 0.0
+load = 0.0
 while(True):
     pressVoltage = ljm.eReadName(handle,"AIN0")
-    adjVoltage = pressVoltage - TRANSDUCERMINVOLTAGE
-    pressure = adjVoltage * TRANSDUCERSCALINGFACTOR
-    print("  %d  Raw Voltage - %f, Adjusted Voltage : %f, Pressure (PSI): %f" % (counter, pressVoltage, adjVoltage, pressure))
+    loadVoltage = ljm.eReadName(handle,"AIN5");
+    pressAdjVoltage = pressVoltage - TRANSDUCERMINVOLTAGE
+    pressure = pressAdjVoltage * TRANSDUCERSCALINGFACTOR
+    #1.25 and 201 taken from dip switches active on the LJ-Tick-InAmp. For more info see https://labjack.com/pages/support?doc=/datasheets/accessories/ljtick-inamp-datasheet/
+    loadAdjVoltage = (loadVoltage - 1.25) / 201
+    #Load = RatedLoad *(VAIN- Voffset)/ (gain * Sensitivity * Vexc) in kilos
+    #our load cell's senitivity is 2 mV/V
+    #need to figure out Vexc, which is the excitition of the load cell circuit
+    Vexc = 0.0
+    load = 500 * (loadVoltage - 1.25) / (201 * 2 * Vexc)
+    print("  %d  Raw Voltage - %f, Adjusted Voltage : %f, Pressure (PSI): %f" % (counter, pressVoltage, pressAdjVoltage, pressure))
+    print("  %d  Raw Voltage - %f, Adjusted Voltage : %f, Load (kg) : %f " % (counter, loadVoltage, loadAdjVoltage, load))
     counter += 1
