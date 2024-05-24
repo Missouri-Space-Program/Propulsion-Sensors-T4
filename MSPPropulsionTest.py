@@ -98,11 +98,13 @@ def read_data():
     #our load cell's senitivity is 2 mV/V
     #Excition voltage available on Input 6.
     Vexc = ljm.eReadName(handle, "AIN6")
-    print(Vexc)
+    #print(Vexc)
     #load = 500 * (loadVoltage - 1.25) / (201 * 2 * Vexc)
-    load = 500 * loadAdjVoltage / (2 * 2.5)
+    #load = 500 * loadAdjVoltage / (2 * 2.5)
     #found by calculating the slope and intercept between two known weights and the adjusted voltage
     calibratedLoad = 100387.5 * loadAdjVoltage - 3.8069375
+    #multiply calibrated load by 9.81 to get N reading since its originally in kgf ngl, not sure if this is correct need someone better at physics than me to look over load cell lol
+    calibratedLoad = calibratedLoad * 9.81
     return calibratedLoad, pressure
 
 # Function to update the data and plot
@@ -133,18 +135,57 @@ def update_data():
     time.sleep(0.05)  # Update rate of 50 Hz
 
 dpg.create_context()
-dpg.create_viewport(title='MSP Propulsion Data Acquisition', width=1920, height=1080)
 
-with dpg.window(label="MSP Propulsion Data Acquisition", width=1920,height=1080):
-  with dpg.plot(label='Thrust Data', height=500, width=1000):
+width, height, channels, data = dpg.load_image("assets/MSPLogoWhite.png")
+with dpg.texture_registry(show=True):
+    dpg.add_static_texture(width=width, height=height, default_value=data, tag="MSP_image_tag")
+
+with dpg.font_registry():
+   default_font = dpg.add_font("assets/Roboto-Regular.ttf",15)
+   nasa_font = dpg.add_font("assets/nasalization-rg.otf",30)
+
+with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
+  with dpg.theme(tag="thrust_theme"):
+      with dpg.theme_component(dpg.mvLineSeries):
+          dpg.add_theme_color(dpg.mvPlotCol_Line, (224, 86, 44), category=dpg.mvThemeCat_Plots)
+  with dpg.theme(tag="pressure_theme"):
+      with dpg.theme_component(dpg.mvLineSeries):
+          dpg.add_theme_color(dpg.mvPlotCol_Line, (46, 111, 232), category=dpg.mvThemeCat_Plots)
+  with dpg.plot(label='Thrust Data', width=625,height=320, anti_aliased=True, use_local_time=True):
     thrust_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time (s)',tag='thrust_x')
     thrust_y = dpg.add_plot_axis(dpg.mvYAxis, label='Thrust (N)', tag='thrust_y')
     dpg.add_line_series(x=list(time_data),y=list(load_cell_data),label='Thrust',parent='thrust_y',tag='thrust_curve')
-  with dpg.plot(label='Pressure Data', height=500, width=1000):
+    dpg.bind_item_theme("thrust_curve","thrust_theme")
+
+  with dpg.plot(label='Pressure Data',width=625,height=320, anti_aliased=True):
     pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time (s)',tag='pressure_x')
     pressure_y = dpg.add_plot_axis(dpg.mvYAxis, label='Pressure (PSI)', tag='pressure_y')
     dpg.add_line_series(x=list(time_data),y=list(load_cell_data),label='Pressure',parent='pressure_y',tag='pressure_curve')
+    dpg.bind_item_theme("pressure_curve","pressure_theme")
+  dpg.bind_font(default_font)
 
+with dpg.window(label="Options", width=640,height=320,pos=[640,0], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
+  dpg.add_button(label="Start Recording", width=100, height=68, tag="start_record")
+  dpg.add_button(label="Stop Recording", width=100, height=68, tag="stop_record")
+  dpg.add_button(label="ARM IGNITER", width=100, height=68, tag="arm_igniter")
+  dpg.add_button(label="IGNITE MOTOR", width=100, height=68, tag="ignite_motor")
+  dpg.add_image("MSP_image_tag", width=126, height=88, pos=[497,25])
+
+with dpg.theme() as global_theme:
+
+    with dpg.theme_component(dpg.mvAll):
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (60, 60, 60), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
+
+    with dpg.theme_component(dpg.mvInputInt):
+        dpg.add_theme_color(dpg.mvThemeCol_FrameBg, (140, 255, 23), category=dpg.mvThemeCat_Core)
+        dpg.add_theme_style(dpg.mvStyleVar_FrameRounding, 5, category=dpg.mvThemeCat_Core)
+
+
+dpg.bind_theme(global_theme)
+dpg.show_style_editor()
+
+dpg.create_viewport(title='MSP Propulsion Data Acquisition', width=1280, height=720)
 dpg.setup_dearpygui()
 dpg.show_viewport()
 thread = threading.Thread(target=update_data)
