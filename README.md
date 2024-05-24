@@ -1,6 +1,7 @@
 # Sensor Configuration With Labjack T4
 Repository for storing MSP's code relating to live data acquisition of motor tests.
-**POC: Ryan Milewski <rsmbby@umsystem.edu>
+<br>
+**POC: Ryan Milewski <rsmbby@umsystem.edu>**
 
 ## Prerequisites
 - Download & install the LJM library at [Labjack's Website](https://labjack.com/pages/support/software?doc=%2Fsoftware-driver%2Finstaller-downloads%2Fljm-installation-instructions%2F)
