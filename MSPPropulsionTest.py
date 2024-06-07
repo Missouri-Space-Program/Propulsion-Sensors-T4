@@ -8,6 +8,8 @@ TRANSDUCERMAXVOLTAGE = 4.5
 TRANSDUCERMAXPRESSURE = 1600 #In PSI
 TRANSDUCERSCALINGFACTOR = TRANSDUCERMAXPRESSURE / (TRANSDUCERMAXVOLTAGE-TRANSDUCERMINVOLTAGE)
 SAMPLES = 5
+
+igniter_armed = False
 # Open first found LabJack
 handle = ljm.openS("ANY","ANY","ANY")
 
@@ -134,7 +136,26 @@ def update_data():
     
     time.sleep(0.05)  # Update rate of 50 Hz
 
+def arm_igniter():
+  global igniter_armed
+  if igniter_armed is False:
+    igniter_armed = True
+    dpg.set_value("arm_status","Igniter Status: ARMED")
+    dpg.bind_item_theme("arm_status",armed_status)
+  elif igniter_armed is True:
+    igniter_armed = False
+    dpg.set_value("arm_status","Igniter Status: UNARMED")
+    dpg.bind_item_theme("arm_status",disarmed_status)
+
 dpg.create_context()
+
+with dpg.theme() as disarmed_status:
+    with dpg.theme_component(dpg.mvAll):
+       dpg.add_theme_color(dpg.mvThemeCol_Text, [0,255,0])
+
+with dpg.theme() as armed_status:
+    with dpg.theme_component(dpg.mvAll):
+       dpg.add_theme_color(dpg.mvThemeCol_Text, [255,0,0])
 
 width, height, channels, data = dpg.load_image("assets/MSPLogoWhite.png")
 with dpg.texture_registry(show=True):
@@ -165,10 +186,12 @@ with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrol
   dpg.bind_font(default_font)
 
 with dpg.window(label="Options", width=640,height=320,pos=[640,0], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
-  dpg.add_button(label="Start Recording", width=100, height=68, tag="start_record")
-  dpg.add_button(label="Stop Recording", width=100, height=68, tag="stop_record")
-  dpg.add_button(label="ARM IGNITER", width=100, height=68, tag="arm_igniter")
-  dpg.add_button(label="IGNITE MOTOR", width=100, height=68, tag="ignite_motor")
+  dpg.add_button(label="Start Recording", width=150, height=68, tag="start_record")
+  dpg.add_button(label="Stop Recording", width=150, height=68, tag="stop_record")
+  dpg.add_button(label="ARM/DISARM IGNITER", width=150, height=68, tag="arm_disarm_igniter",callback=arm_igniter)
+  dpg.add_text("Igniter Status: UNARMED",pos=[175,195], tag="arm_status")
+  dpg.bind_item_theme("arm_status",disarmed_status)
+  dpg.add_button(label="IGNITE MOTOR", width=150, height=68, tag="ignite_motor")
   dpg.add_image("MSP_image_tag", width=126, height=88, pos=[497,25])
 
 with dpg.theme() as global_theme:
