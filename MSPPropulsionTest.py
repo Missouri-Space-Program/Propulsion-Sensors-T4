@@ -10,6 +10,7 @@ TRANSDUCERSCALINGFACTOR = TRANSDUCERMAXPRESSURE / (TRANSDUCERMAXVOLTAGE-TRANSDUC
 SAMPLES = 5
 
 igniter_armed = False
+countdown_active = False
 # Open first found LabJack
 handle = ljm.openS("ANY","ANY","ANY")
 
@@ -147,6 +148,33 @@ def arm_igniter():
     dpg.set_value("arm_status","Igniter Status: UNARMED")
     dpg.bind_item_theme("arm_status",disarmed_status)
 
+def start_stop_countdown(active_timer):
+  global countdown_active
+  global timer
+  if countdown_active is False and igniter_armed is True:
+    countdown_active = True
+    dpg.set_value("countdown_status", "Countdown Status: Countdown Started, Igniting in 5 seconds!")
+    timer.start()
+  elif countdown_active is False and igniter_armed is False:
+    dpg.set_value("countdown_status", "Countdown Status: Unable to start count, Igniter Unarmed!")
+  elif countdown_active is True:
+    dpg.set_value("countdown_status", "Countdown Status: Canceled Countdown!")
+    countdown_active = False
+    timer.cancel()
+    timer = threading.Timer(5.0,ignite_motor)
+
+def ignite_motor():
+  global countdown_active 
+  global timer
+  timer = threading.Timer(5.0,ignite_motor)
+  countdown_active = False
+  dpg.set_value("countdown_status","Countdown Status: Igniting Motor!")
+  #write 5V to igniter wire
+  ljm.eWriteName(handle,"DAC0",5.0)
+  #wait 5 seconds, return back to 0V
+  threading.Timer(5,ljm.eWriteName(handle,"DAC0",0.0))
+
+timer = threading.Timer(5.0,ignite_motor)
 dpg.create_context()
 
 with dpg.theme() as disarmed_status:
@@ -173,13 +201,13 @@ with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrol
       with dpg.theme_component(dpg.mvLineSeries):
           dpg.add_theme_color(dpg.mvPlotCol_Line, (46, 111, 232), category=dpg.mvThemeCat_Plots)
   with dpg.plot(label='Thrust Data', width=625,height=320, anti_aliased=True, use_local_time=True):
-    thrust_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time (s)',tag='thrust_x')
+    thrust_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since UNIX Epoch (s)',tag='thrust_x')
     thrust_y = dpg.add_plot_axis(dpg.mvYAxis, label='Thrust (N)', tag='thrust_y')
     dpg.add_line_series(x=list(time_data),y=list(load_cell_data),label='Thrust',parent='thrust_y',tag='thrust_curve')
     dpg.bind_item_theme("thrust_curve","thrust_theme")
 
   with dpg.plot(label='Pressure Data',width=625,height=320, anti_aliased=True):
-    pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time (s)',tag='pressure_x')
+    pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since UNIX Epoch (s)',tag='pressure_x')
     pressure_y = dpg.add_plot_axis(dpg.mvYAxis, label='Pressure (PSI)', tag='pressure_y')
     dpg.add_line_series(x=list(time_data),y=list(load_cell_data),label='Pressure',parent='pressure_y',tag='pressure_curve')
     dpg.bind_item_theme("pressure_curve","pressure_theme")
@@ -191,7 +219,8 @@ with dpg.window(label="Options", width=640,height=320,pos=[640,0], no_close=True
   dpg.add_button(label="ARM/DISARM IGNITER", width=150, height=68, tag="arm_disarm_igniter",callback=arm_igniter)
   dpg.add_text("Igniter Status: UNARMED",pos=[175,195], tag="arm_status")
   dpg.bind_item_theme("arm_status",disarmed_status)
-  dpg.add_button(label="IGNITE MOTOR", width=150, height=68, tag="ignite_motor")
+  dpg.add_button(label="Start/Stop Ignition \n       Countdown", width=150, height=68, tag="ignite_motor", callback=start_stop_countdown)
+  dpg.add_text("Countdown Status: Inactive\n",pos=[175,267], tag="countdown_status")
   dpg.add_image("MSP_image_tag", width=126, height=88, pos=[497,25])
 
 with dpg.theme() as global_theme:
@@ -206,8 +235,6 @@ with dpg.theme() as global_theme:
 
 
 dpg.bind_theme(global_theme)
-dpg.show_style_editor()
-
 dpg.create_viewport(title='MSP Propulsion Data Acquisition', width=1280, height=720)
 dpg.setup_dearpygui()
 dpg.show_viewport()
