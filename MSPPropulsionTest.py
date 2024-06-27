@@ -2,6 +2,7 @@ from labjack import ljm
 import dearpygui.dearpygui as dpg
 import time
 import threading
+import csv
 
 TRANSDUCERMINVOLTAGE = 0.5
 TRANSDUCERMAXVOLTAGE = 4.5
@@ -11,6 +12,8 @@ SAMPLES = 5
 
 igniter_armed = False
 countdown_active = False
+recording_data = False
+decreasing = False
 # Open first found LabJack
 handle = ljm.openS("ANY","ANY","ANY")
 
@@ -79,7 +82,9 @@ load_cell_data = []
 pressure_data = []
 time_data = []
 max_points = 100  # Maximum number of points to display on the plot
-
+recorded_time = []
+recorded_load_cell = []
+recorded_pressure = []
 # Function to read data from LabJack
 def read_data():
     avgCounter = 0
@@ -110,8 +115,20 @@ def read_data():
     calibratedLoad = calibratedLoad * 9.81
     return calibratedLoad, pressure
 
+def plot_and_write(load_cell, pressure, time):
+  print("DONE!")
+  print(load_cell)
+  with open('data.csv', 'w', encoding='UTF8', newline='') as f:
+    writer = csv.writer(f)
+
+    writer.writerow(['time','thrust (N)', 'pressure (PSI)'])
+    for timer, thrust, press in zip(time, load_cell, pressure):
+      writer.writerow([timer,thrust,press])
+
 # Function to update the data and plot
 def update_data():
+  global decreasing
+  global recording_data
   while True:
     calLoad, pressure = read_data()
     
@@ -125,7 +142,17 @@ def update_data():
       pressure_data.pop(0)
       time_data.pop(0)
     
-    
+    if recording_data:
+      recorded_load_cell.append(calLoad)
+      recorded_pressure.append(pressure)
+      recorded_time.append(current_time)
+      if len(recorded_load_cell) > 2 and recorded_load_cell[-1] < recorded_load_cell[-2]:
+        #decreasing
+        decreasing = True
+      if decreasing and recorded_load_cell[-2] > 50 and recorded_load_cell[-1] < 50:
+        #hit cut off of 50 N and decreasing, stop recording and begin plots
+        recording_data = False
+        plot_and_write(recorded_load_cell, recorded_pressure, recorded_time)
     # Update plot data
     dpg.set_value('thrust_curve', [time_data, load_cell_data])
     dpg.fit_axis_data('thrust_x')
@@ -166,10 +193,12 @@ def start_stop_countdown(active_timer):
 def ignite_motor():
   global countdown_active 
   global timer
+  global recording_data
   timer = threading.Timer(5.0,ignite_motor)
   countdown_active = False
   dpg.set_value("countdown_status","Countdown Status: Igniting Motor!")
   #write 5V to igniter wire
+  recording_data = True
   ljm.eWriteName(handle,"DAC0",5.0)
   #wait 5 seconds, return back to 0V
   threading.Timer(5,ljm.eWriteName(handle,"DAC0",0.0))
@@ -213,15 +242,18 @@ with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrol
     dpg.bind_item_theme("pressure_curve","pressure_theme")
   dpg.bind_font(default_font)
 
-with dpg.window(label="Options", width=640,height=320,pos=[640,0], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
-  dpg.add_button(label="Start Recording", width=150, height=68, tag="start_record")
-  dpg.add_button(label="Stop Recording", width=150, height=68, tag="stop_record")
+with dpg.window(label="Options", width=640,height=125,pos=[640,0], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
+  #dpg.add_button(label="Start Recording", width=150, height=68, tag="start_record")
+  #dpg.add_button(label="Stop Recording", width=150, height=68, tag="stop_record")
   dpg.add_button(label="ARM/DISARM IGNITER", width=150, height=68, tag="arm_disarm_igniter",callback=arm_igniter)
-  dpg.add_text("Igniter Status: UNARMED",pos=[175,195], tag="arm_status")
+  dpg.add_text("Igniter Status: UNARMED",pos=[10,100], tag="arm_status")
   dpg.bind_item_theme("arm_status",disarmed_status)
-  dpg.add_button(label="Start/Stop Ignition \n       Countdown", width=150, height=68, tag="ignite_motor", callback=start_stop_countdown)
-  dpg.add_text("Countdown Status: Inactive\n",pos=[175,267], tag="countdown_status")
+  dpg.add_button(label="Start/Stop Ignition \n       Countdown", width=150, height=68, tag="ignite_motor", callback=start_stop_countdown, pos=[160,29])
+  dpg.add_text("Countdown Status: Inactive\n",pos=[160,100], tag="countdown_status")
   dpg.add_image("MSP_image_tag", width=126, height=88, pos=[497,25])
+
+with dpg.window(label="Plots/Results", width=640,height=595,pos=[640,125], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
+  dpg.add_text("Igniter Status: UNARMED")
 
 with dpg.theme() as global_theme:
 
