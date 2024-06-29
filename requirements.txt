@@ -1,3 +1,4 @@
 labjack-ljm
 dearpygui
 scipy
+numpy

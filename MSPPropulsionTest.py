@@ -5,6 +5,7 @@ import threading
 import csv
 from scipy import integrate
 import os
+import numpy as np
 TRANSDUCERMINVOLTAGE = 0.5
 TRANSDUCERMAXVOLTAGE = 4.5
 TRANSDUCERMAXPRESSURE = 1600 #In PSI
@@ -86,6 +87,8 @@ max_points = 500  # Maximum number of points to display on the plot
 recorded_time = []
 recorded_load_cell = []
 recorded_pressure = []
+decr_time = []
+decr_thrust = []
 data_dict = {}
 # Function to read data from LabJack
 def read_data():
@@ -182,7 +185,7 @@ def plot_and_write(load_cell, pressure, timer):
       writer.writerow([times,thrust,press])
   # need to format data to only capture thrust curve for plots, etc
   for ti, thr, pr in zip(timer, load_cell, pressure):
-    if thr > 50:
+    if thr > 25:
       if not first:
          #first value, get time at this point and save
         time_start = ti
@@ -227,6 +230,13 @@ def plot_and_write(load_cell, pressure, timer):
     dpg.add_text("Total Impulse: " + '{0:.2f}'.format(total_impulse) + " Ns",pos=[420,510])
     dpg.add_text("Motor Designation: " + motor_class + '{0:.0f}'.format(avg_thrust),pos=[220,530])
 
+def check_decreasing(time, thrust, order=1):
+  result = np.polyfit(time, thrust,order)
+  slope = result[-2]
+  if slope < 0:
+    return True
+  return False
+
 # Function to update the data and plot
 def update_data():
   global decreasing
@@ -238,17 +248,20 @@ def update_data():
     load_cell_data.append(calLoad)
     pressure_data.append(pressure)
     time_data.append(current_time)
-    
+    decr_time.append(current_time)
+    decr_thrust.append(calLoad)
     if len(load_cell_data) > max_points:
       load_cell_data.pop(0)
       pressure_data.pop(0)
       time_data.pop(0)
-    
+    if len(decr_thrust) > 50:
+      decr_thrust.pop(0)
+      decr_time.pop(0)
     if recording_data:
       recorded_load_cell.append(calLoad)
       recorded_pressure.append(pressure)
       recorded_time.append(current_time)
-      if len(recorded_load_cell) > 3 and recorded_load_cell[-3] < recorded_load_cell[-2] and recorded_load_cell[-2] < recorded_load_cell[-1]:
+      if len(recorded_load_cell) > 100 and check_decreasing(decr_time,decr_thrust):
         #decreasing
         decreasing = True
       if decreasing and recorded_load_cell[-2] > 25 and recorded_load_cell[-1] < 25:
