@@ -3,7 +3,8 @@ import dearpygui.dearpygui as dpg
 import time
 import threading
 import csv
-
+from scipy import integrate
+import os
 TRANSDUCERMINVOLTAGE = 0.5
 TRANSDUCERMAXVOLTAGE = 4.5
 TRANSDUCERMAXPRESSURE = 1600 #In PSI
@@ -81,10 +82,11 @@ load = 0.0
 load_cell_data = []
 pressure_data = []
 time_data = []
-max_points = 100  # Maximum number of points to display on the plot
+max_points = 500  # Maximum number of points to display on the plot
 recorded_time = []
 recorded_load_cell = []
 recorded_pressure = []
+data_dict = {}
 # Function to read data from LabJack
 def read_data():
     avgCounter = 0
@@ -111,19 +113,119 @@ def read_data():
     #load = 500 * loadAdjVoltage / (2 * 2.5)
     #found by calculating the slope and intercept between two known weights and the adjusted voltage
     calibratedLoad = 100387.5 * loadAdjVoltage - 3.8069375
-    #multiply calibrated load by 9.81 to get N reading since its originally in kgf ngl, not sure if this is correct need someone better at physics than me to look over load cell lol
+    #calibration value is set in kg, to get the reading in N, need to multiply by 9.81. Will check calibration factor when back in shop.
     calibratedLoad = calibratedLoad * 9.81
     return calibratedLoad, pressure
 
-def plot_and_write(load_cell, pressure, time):
-  print("DONE!")
-  print(load_cell)
-  with open('data.csv', 'w', encoding='UTF8', newline='') as f:
+def determine_motor_class(impulse):
+  if impulse <= 2.5:
+    return 'A'
+  elif impulse <= 5:
+    return 'B'
+  elif impulse <= 10:
+    return 'C'
+  elif impulse <= 20:
+    return 'D'
+  elif impulse <= 40:
+    return 'E'
+  elif impulse <= 80:
+    return 'F'
+  elif impulse <= 160:
+    return 'G'
+  elif impulse <= 320:
+    return 'H'
+  elif impulse <= 640:
+    return 'I'
+  elif impulse <= 1280:
+    return 'J'
+  elif impulse <= 2560:
+    return 'K'
+  elif impulse <= 5120:
+    return 'L'
+  elif impulse <= 10240:
+    return 'M'
+  elif impulse <= 20480:
+    return 'N'
+  elif impulse <= 40960:
+    return 'O'
+  elif impulse <= 81920:
+    return 'P'
+  return ""
+
+def save_to_file(sender, app_data, user_data):
+  path = app_data['file_path_name']
+  curve_time = data_dict['time']
+  curve_thrust = data_dict['thrust']
+  curve_press = data_dict['pressure']
+  cur_time = time.time()
+  with open(os.path.join(path, "TestData" + str(cur_time) + ".csv"), 'w', encoding='UTF8', newline='') as f:
+    writer = csv.writer(f)
+    writer.writerow(['time','thrust (N)', 'pressure (PSI)'])
+    for timer, thrust, press in zip(curve_time, curve_thrust, curve_press):
+      writer.writerow([timer,thrust,press])
+  time.sleep(0.05)
+  dpg.output_frame_buffer(os.path.join(path, "Test" + str(cur_time) + "Plots_Data.png"))
+
+def plot_and_write(load_cell, pressure, timer):
+  global data_dict
+  curve_time = []
+  curve_press = []
+  curve_thrust = []
+  first = False
+  time_start = 0.0
+  cur_time = time.time()
+  with open("data_backup_full_recording" + str(cur_time) + ".csv", 'w', encoding='UTF8', newline='') as f:
     writer = csv.writer(f)
 
     writer.writerow(['time','thrust (N)', 'pressure (PSI)'])
-    for timer, thrust, press in zip(time, load_cell, pressure):
-      writer.writerow([timer,thrust,press])
+    for times, thrust, press in zip(timer, load_cell, pressure):
+      writer.writerow([times,thrust,press])
+  # need to format data to only capture thrust curve for plots, etc
+  for ti, thr, pr in zip(timer, load_cell, pressure):
+    if thr > 50:
+      if not first:
+         #first value, get time at this point and save
+        time_start = ti
+        first = True
+        curve_time.append(0)
+      else:
+        t = ti - time_start
+        curve_time.append(t)
+      #only get data when thrust is greater than 50 N
+      curve_thrust.append(thr)
+      curve_press.append(pr)
+  data_dict['time'] = curve_time
+  data_dict['thrust'] = curve_thrust
+  data_dict['pressure'] = curve_press
+  dpg.set_item_user_data("save_data", data_dict)
+  #now let's calculate burn time, avg Thrust, Avg Pressure, Max Thrust, Impulse
+  burn_time = curve_time[len(curve_time)-1]
+  avg_thrust = sum(curve_thrust) / len(curve_thrust)
+  avg_pressure = sum(curve_press) / len(curve_press)
+  max_thrust = max(curve_thrust)
+  max_pressure = max(curve_press)
+  total_impulse = integrate.simpson(curve_thrust,x=curve_time)
+  motor_class = determine_motor_class(total_impulse)
+  dpg.configure_item("save_data", show=True)
+  with dpg.window(label="Plots/Results", width=640,height=595,pos=[640,125], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True, tag="plots_results"):
+    with dpg.plot(label='Thrust Data', width=610,height=225, anti_aliased=True, use_local_time=True):
+      thrust_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time (s)',tag='thrust_x_recorded')
+      thrust_y = dpg.add_plot_axis(dpg.mvYAxis, label='Thrust (N)', tag='thrust_y_recorded')
+      dpg.add_line_series(curve_time,curve_thrust,label='Thrust',parent='thrust_y_recorded',tag='thrust_curve_recorded')
+      dpg.bind_item_theme("thrust_curve_recorded","thrust_theme")
+    with dpg.plot(label='Pressure Data',width=610,height=225, anti_aliased=True):
+      pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time (s)',tag='pressure_x_recorded')
+      pressure_y = dpg.add_plot_axis(dpg.mvYAxis, label='Pressure (PSI)', tag='pressure_y_recorded')
+      dpg.add_line_series(curve_time,curve_press,label='Pressure',parent='pressure_y_recorded',tag='pressure_curve_recorded')
+      dpg.bind_item_theme("pressure_curve_recorded","pressure_theme")
+    dpg.bind_font(default_font)
+    dpg.add_text("Average Thrust: " + '{0:,.2f}'.format(avg_thrust) + " N",pos=[20,490])
+    dpg.add_text("Max Thrust: " + '{0:,.2f}'.format(max_thrust) + " N",pos=[20,510])
+    dpg.add_text("Average Pressure: " + '{0:,.2f}'.format(avg_pressure) + " PSI",pos=[220,490])
+    dpg.add_text("Max Pressure: " + '{0:,.2f}'.format(max_pressure) + " PSI",pos=[220,510])
+    dpg.add_text("Burn Time: " + '{0:.2f}'.format(burn_time) + " s",pos=[420,490])
+    dpg.add_text("Total Impulse: " + '{0:.2f}'.format(total_impulse) + " Ns",pos=[420,510])
+    dpg.add_text("Motor Designation: " + motor_class + '{0:.0f}'.format(avg_thrust),pos=[220,530])
 
 # Function to update the data and plot
 def update_data():
@@ -146,11 +248,11 @@ def update_data():
       recorded_load_cell.append(calLoad)
       recorded_pressure.append(pressure)
       recorded_time.append(current_time)
-      if len(recorded_load_cell) > 2 and recorded_load_cell[-1] < recorded_load_cell[-2]:
+      if len(recorded_load_cell) > 3 and recorded_load_cell[-3] < recorded_load_cell[-2] and recorded_load_cell[-2] < recorded_load_cell[-1]:
         #decreasing
         decreasing = True
-      if decreasing and recorded_load_cell[-2] > 50 and recorded_load_cell[-1] < 50:
-        #hit cut off of 50 N and decreasing, stop recording and begin plots
+      if decreasing and recorded_load_cell[-2] > 25 and recorded_load_cell[-1] < 25:
+        #hit cut off of 25 N and decreasing, stop recording and begin plots
         recording_data = False
         plot_and_write(recorded_load_cell, recorded_pressure, recorded_time)
     # Update plot data
@@ -161,15 +263,24 @@ def update_data():
     dpg.set_value('pressure_curve', [time_data, pressure_data])
     dpg.fit_axis_data('pressure_x')
     dpg.fit_axis_data('pressure_y')
-    
-    time.sleep(0.05)  # Update rate of 50 Hz
+    time.sleep(0.0025)  # Update rate of 250 Hz
 
 def arm_igniter():
   global igniter_armed
+  global countdown_active
+  global timer
   if igniter_armed is False:
     igniter_armed = True
     dpg.set_value("arm_status","Igniter Status: ARMED")
     dpg.bind_item_theme("arm_status",armed_status)
+  elif igniter_armed is True and countdown_active is True:
+    igniter_armed = False
+    dpg.set_value("arm_status","Igniter Status: UNARMED")
+    dpg.bind_item_theme("arm_status",disarmed_status)
+    countdown_active = False
+    dpg.set_value("countdown_status", "Countdown Status: Canceled Countdown!")
+    timer.cancel()
+    timer = threading.Timer(5.0, ignite_motor)
   elif igniter_armed is True:
     igniter_armed = False
     dpg.set_value("arm_status","Igniter Status: UNARMED")
@@ -205,7 +316,8 @@ def ignite_motor():
 
 timer = threading.Timer(5.0,ignite_motor)
 dpg.create_context()
-
+dpg.add_file_dialog(
+    directory_selector=True, show=False, callback=save_to_file, tag="file_dialog_id", width=700 ,height=400)
 with dpg.theme() as disarmed_status:
     with dpg.theme_component(dpg.mvAll):
        dpg.add_theme_color(dpg.mvThemeCol_Text, [0,255,0])
@@ -238,22 +350,22 @@ with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrol
   with dpg.plot(label='Pressure Data',width=625,height=320, anti_aliased=True):
     pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since UNIX Epoch (s)',tag='pressure_x')
     pressure_y = dpg.add_plot_axis(dpg.mvYAxis, label='Pressure (PSI)', tag='pressure_y')
-    dpg.add_line_series(x=list(time_data),y=list(load_cell_data),label='Pressure',parent='pressure_y',tag='pressure_curve')
+    dpg.add_line_series(x=list(time_data),y=list(pressure_data),label='Pressure',parent='pressure_y',tag='pressure_curve')
     dpg.bind_item_theme("pressure_curve","pressure_theme")
   dpg.bind_font(default_font)
 
 with dpg.window(label="Options", width=640,height=125,pos=[640,0], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
-  #dpg.add_button(label="Start Recording", width=150, height=68, tag="start_record")
-  #dpg.add_button(label="Stop Recording", width=150, height=68, tag="stop_record")
+  dpg.add_button(label="Save Data", width=150, height=68, tag="save_data", pos=[312,29], callback=lambda: dpg.show_item("file_dialog_id"), show=False, user_data=data_dict)
   dpg.add_button(label="ARM/DISARM IGNITER", width=150, height=68, tag="arm_disarm_igniter",callback=arm_igniter)
   dpg.add_text("Igniter Status: UNARMED",pos=[10,100], tag="arm_status")
   dpg.bind_item_theme("arm_status",disarmed_status)
   dpg.add_button(label="Start/Stop Ignition \n       Countdown", width=150, height=68, tag="ignite_motor", callback=start_stop_countdown, pos=[160,29])
   dpg.add_text("Countdown Status: Inactive\n",pos=[160,100], tag="countdown_status")
-  dpg.add_image("MSP_image_tag", width=126, height=88, pos=[497,25])
+  dpg.add_image("MSP_image_tag", width=126, height=88, pos=[475,20])
 
-with dpg.window(label="Plots/Results", width=640,height=595,pos=[640,125], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
-  dpg.add_text("Igniter Status: UNARMED")
+with dpg.window(label="Plots/Results", width=640,height=595,pos=[640,125], no_close=True, no_scrollbar=True,no_move=True, no_collapse=True, tag="plots_results_default"):
+  #placeholder window, will be filled after recording is done.
+  dpg.add_text()
 
 with dpg.theme() as global_theme:
 
