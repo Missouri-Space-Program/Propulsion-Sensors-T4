@@ -241,10 +241,11 @@ def check_decreasing(time, thrust, order=1):
 def update_data():
   global decreasing
   global recording_data
+  start_time = time.time()
   while True:
     calLoad, pressure = read_data()
     
-    current_time = time.time()
+    current_time = time.time() - start_time
     load_cell_data.append(calLoad)
     pressure_data.append(pressure)
     time_data.append(current_time)
@@ -355,13 +356,13 @@ with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrol
       with dpg.theme_component(dpg.mvLineSeries):
           dpg.add_theme_color(dpg.mvPlotCol_Line, (46, 111, 232), category=dpg.mvThemeCat_Plots)
   with dpg.plot(label='Thrust Data', width=625,height=320, anti_aliased=True, use_local_time=True):
-    thrust_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since UNIX Epoch (s)',tag='thrust_x')
+    thrust_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since program start (s)',tag='thrust_x')
     thrust_y = dpg.add_plot_axis(dpg.mvYAxis, label='Thrust (N)', tag='thrust_y')
     dpg.add_line_series(x=list(time_data),y=list(load_cell_data),label='Thrust',parent='thrust_y',tag='thrust_curve')
     dpg.bind_item_theme("thrust_curve","thrust_theme")
 
   with dpg.plot(label='Pressure Data',width=625,height=320, anti_aliased=True):
-    pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since UNIX Epoch (s)',tag='pressure_x')
+    pressure_x = dpg.add_plot_axis(dpg.mvXAxis, label='Time since program start (s)',tag='pressure_x')
     pressure_y = dpg.add_plot_axis(dpg.mvYAxis, label='Pressure (PSI)', tag='pressure_y')
     dpg.add_line_series(x=list(time_data),y=list(pressure_data),label='Pressure',parent='pressure_y',tag='pressure_curve')
     dpg.bind_item_theme("pressure_curve","pressure_theme")
