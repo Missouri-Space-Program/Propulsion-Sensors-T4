@@ -18,7 +18,7 @@ recording_data = False
 decreasing = False
 # Open first found LabJack
 handle = ljm.openS("ANY","ANY","ANY")
-
+ljm.eWriteName(handle,"DAC0",0.0)
 info = ljm.getHandleInfo(handle)
 print("Opened a LabJack with Device type: %i, Connection type: %i,\n"
       "Serial number: %i, IP address: %s, Port: %i,\nMax bytes per MB: %i" %
@@ -319,6 +319,7 @@ def ignite_motor():
   global countdown_active 
   global timer
   global recording_data
+  global handle
   timer = threading.Timer(5.0,ignite_motor)
   countdown_active = False
   dpg.set_value("countdown_status","Countdown Status: Igniting Motor!")
