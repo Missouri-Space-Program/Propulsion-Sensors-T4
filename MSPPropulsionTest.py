@@ -329,7 +329,6 @@ def ignite_motor():
   #wait 5 seconds, return back to 0V
   threading.Timer(5,ljm.eWriteName(handle,"DAC0",0.0))
 
-timer = threading.Timer(5.0,ignite_motor)
 dpg.create_context()
 dpg.add_file_dialog(
     directory_selector=True, show=False, callback=save_to_file, tag="file_dialog_id", width=700 ,height=400)
