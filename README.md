@@ -7,6 +7,23 @@ Repository for storing MSP's code relating to live data acquisition of motor tes
 - Download & install the LJM library at [Labjack's Website](https://labjack.com/pages/support/software?doc=%2Fsoftware-driver%2Finstaller-downloads%2Fljm-installation-instructions%2F)
 - Download all packages with `pip install -r requirements.txt`
 
+## Build a Windows executable
+
+Build on Windows with the same architecture as the target machine. PyInstaller does not cross-compile, so run these commands from PowerShell on Windows:
+
+```powershell
+.\build_windows.ps1
+```
+
+The executable is created at `dist\MSPPropulsionTest.exe`. The build includes the `assets` directory and the Python dependencies. Install the Windows version of LabJack LJM on the target PC so `LabJackM.dll` is available. To bundle that DLL instead, set its path before building:
+
+```powershell
+$env:LABJACK_LJM_DLL = "C:\Program Files\LabJack\LJM\LabJackM.dll"
+.\build_windows.ps1
+```
+
+Connect the T4 and verify the Windows firewall/network configuration before launching the executable.
+
 To use over Ethernet, plug into your machine. The T4 currently lives on 192.168.20.3
 To access it, you will need to configure a static IP on your own machine. Go into your machine's wired NIC and configure the following static settings
 

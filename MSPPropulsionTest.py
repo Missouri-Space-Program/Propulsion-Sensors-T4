@@ -6,6 +6,14 @@ import csv
 from scipy import integrate
 import os
 import numpy as np
+import sys
+
+if getattr(sys, "frozen", False):
+  RESOURCE_DIR = sys._MEIPASS
+else:
+  RESOURCE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+ASSETS_DIR = os.path.join(RESOURCE_DIR, "assets")
 TRANSDUCERMINVOLTAGE = 0.5
 TRANSDUCERMAXVOLTAGE = 4.5
 TRANSDUCERMAXPRESSURE = 1600 #In PSI
@@ -346,13 +354,13 @@ with dpg.theme() as armed_status:
     with dpg.theme_component(dpg.mvAll):
        dpg.add_theme_color(dpg.mvThemeCol_Text, [255,0,0])
 
-width, height, channels, data = dpg.load_image("assets/MSPLogoWhite.png")
+width, height, channels, data = dpg.load_image(os.path.join(ASSETS_DIR, "MSPLogoWhite.png"))
 with dpg.texture_registry(show=True):
     dpg.add_static_texture(width=width, height=height, default_value=data, tag="MSP_image_tag")
 
 with dpg.font_registry():
-   default_font = dpg.add_font("assets/Roboto-Regular.ttf",15)
-   nasa_font = dpg.add_font("assets/nasalization-rg.otf",30)
+  default_font = dpg.add_font(os.path.join(ASSETS_DIR, "Roboto-Regular.ttf"),15)
+  nasa_font = dpg.add_font(os.path.join(ASSETS_DIR, "nasalization-rg.otf"),30)
 
 with dpg.window(label="Live Data", width=640,height=720, no_close=True, no_scrollbar=True,no_move=True, no_collapse=True):
   with dpg.theme(tag="thrust_theme"):
