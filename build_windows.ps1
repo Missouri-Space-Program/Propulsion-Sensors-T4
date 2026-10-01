@@ -1,7 +1,12 @@
 $ErrorActionPreference = "Stop"
 
+$python = Get-Command python -ErrorAction SilentlyContinue
+if (-not $python) {
+    throw "Python was not found. Install Python for Windows and enable 'Add python.exe to PATH', then rerun this script."
+}
+
 if (-not (Test-Path ".venv\Scripts\python.exe")) {
-    py -3 -m venv .venv
+    & $python.Source -m venv .venv
 }
 
 & .venv\Scripts\python.exe -m pip install --upgrade pip

@@ -15,6 +15,19 @@ Build on Windows with the same architecture as the target machine. PyInstaller d
 .\build_windows.ps1
 ```
 
+If PowerShell reports that the script is not digitally signed, run it with a process-scoped policy bypass. This does not change the machine's execution policy:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
+.\build_windows.ps1
+```
+
+Alternatively, run it in one command:
+
+```powershell
+powershell.exe -ExecutionPolicy Bypass -File .\build_windows.ps1
+```
+
 The executable is created at `dist\MSPPropulsionTest.exe`. The build includes the `assets` directory and the Python dependencies. Install the Windows version of LabJack LJM on the target PC so `LabJackM.dll` is available. To bundle that DLL instead, set its path before building:
 
 ```powershell
